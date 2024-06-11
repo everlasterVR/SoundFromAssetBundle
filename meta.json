@@ -1,0 +1,21 @@
+{
+  "licenseType": "CC BY-SA",
+  "creatorName": "everlaster",
+  "packageName": "SoundFromAssetBundle",
+  "standardReferenceVersionOption": "Latest",
+  "scriptReferenceVersionOption": "Exact",
+  "description": "v0.0.0. Exposes audio files in Unity AssetBundles to VaM's Trigger system. Based on the SoundFromAB LogicBrick by MacGruber.",
+  "credits": "MacGruber",
+  "instructions": "Add to Person, AudioSource, AptSpeaker or RhythmAudioSource atom.",
+  "promotionalLink": "",
+  "programVersion": "1.22.0.3",
+  "contentList": [
+    "Custom/Scripts/everlaster/SoundFromAssetBundle/SoundFromAssetBundle.cslist",
+    "Custom/Scripts/everlaster/SoundFromAssetBundle/src"
+  ],
+  "dependencies": {
+  },
+  "customOptions": {
+    "preloadMorphs": "false"
+  }
+}
