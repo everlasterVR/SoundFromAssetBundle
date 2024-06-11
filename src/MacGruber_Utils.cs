@@ -17,6 +17,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Request = MeshVR.AssetLoader.AssetBundleFromFileRequest;
 using AssetBundles;
+using MVR.FileManagementSecure;
 using SimpleJSON;
 
 namespace MacGruber
@@ -189,7 +190,18 @@ namespace MacGruber
 		// Create VaM-UI AssetBundleChooser.
 		public static JSONStorableUrl SetupAssetBundleChooser(MVRScript self, string label, string defaultValue, bool rightSide, string fileExtensions)
 		{
-			JSONStorableUrl storable = new JSONStorableUrl(label, defaultValue, fileExtensions);
+			JSONStorableUrl storable = new JSONStorableUrl(label, defaultValue, fileExtensions)
+			{
+				allowFullComputerBrowse = true,
+				allowBrowseAboveSuggestedPath = true,
+				hideExtension = true,
+				showDirs = true,
+				suggestedPath = "Custom/Assets",
+				beginBrowseWithObjectCallback = jsu =>
+				{
+					jsu.shortCuts = GetShortCutsForDirectory("Custom/Assets");
+				},
+			};
 			self.RegisterUrl(storable);
 			UIDynamicButton button = self.CreateButton("Select " + label, false);
 			UIDynamicTextField textfield = self.CreateTextField(storable, false);
@@ -203,6 +215,18 @@ namespace MacGruber
 				storable.SetFilePath(defaultValue);
 			storable.RegisterFileBrowseButton(button.button);
 			return storable;
+		}
+
+		static List<ShortCut> GetShortCutsForDirectory(string path)
+		{
+			var cutsForDirectory = FileManagerSecure.GetShortCutsForDirectory(path, true, true, true);
+			var rootShortCut = new ShortCut
+			{
+				displayName = "Root",
+				path = FileManagerSecure.GetFullPath("."),
+			};
+			cutsForDirectory.Insert(0, rootShortCut);
+			return cutsForDirectory;
 		}
 
 		// Create VaM-UI InfoText field
@@ -440,7 +464,7 @@ namespace MacGruber
 		public static UIDynamicTextInfo SetupInfoTextNoScroll(MVRScript script, JSONStorableString storable, float height, bool rightSide)
 		{
 			UIDynamicTextInfo uid = SetupInfoTextNoScroll(script, storable.val, height, rightSide);
-			storable.setCallbackFunction = (string text) => { 
+			storable.setCallbackFunction = (string text) => {
 				if (uid != null && uid.text != null)
 					uid.text.text = text;
 			};
@@ -453,7 +477,7 @@ namespace MacGruber
 			uid.background.offsetMin = new Vector2(0, 0);
 			return uid;
 		}
-		
+
 		public static UIDynamicTextInfo SetupInfoOneLine(MVRScript script, JSONStorableString storable, bool rightSide)
 		{
 			UIDynamicTextInfo uid = SetupInfoTextNoScroll(script, storable, 35, rightSide);
@@ -903,14 +927,14 @@ namespace MacGruber
 			Owner = owner;
 			handler = SimpleTriggerHandler.Instance;
 		}
-		
+
 		public CustomTrigger(CustomTrigger other)
 		{
 			Name = other.Name;
 			SecondaryName = other.SecondaryName;
 			Owner = other.Owner;
 			handler = SimpleTriggerHandler.Instance;
-			
+
 			JSONClass jc = other.GetJSON(Owner.subScenePrefix);
 			base.RestoreFromJSON(jc, Owner.subScenePrefix, false);
 		}
@@ -963,7 +987,7 @@ namespace MacGruber
 			: base(owner, name, secondary)
 		{
 		}
-		
+
 		public EventTrigger(EventTrigger other)
 			: base(other)
 		{
@@ -1001,7 +1025,7 @@ namespace MacGruber
 			: base(owner, name, secondary)
 		{
 		}
-		
+
 		public FloatTrigger(FloatTrigger other)
 			: base(other)
 		{
