@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 using Request = MeshVR.AssetLoader.AssetBundleFromFileRequest;
 using MeshVR;
@@ -290,10 +291,10 @@ namespace everlaster
 				}
 			};
 
-			Utils.SetupAction(this, "StopLoop",          () => { if (myAudioSourceControl != null)	myAudioSourceControl.StopLoop(); });
-			Utils.SetupAction(this, "Stop",              () => { if (myAudioSourceControl != null)	myAudioSourceControl.Stop(); });
-			Utils.SetupAction(this, "StopAndClearQueue", () => { if (myAudioSourceControl != null)	myAudioSourceControl.StopAndClearQueue(); });
-			Utils.SetupAction(this, "ClearQueue",        () => { if (myAudioSourceControl != null)	myAudioSourceControl.ClearQueue(); });
+			Utils.SetupAction(this, "StopLoop", StopLoop);
+			Utils.SetupAction(this, "Stop", Stop);
+			Utils.SetupAction(this, "StopAndClearQueue", StopAndClearQueue);
+			Utils.SetupAction(this, "ClearQueue", ClearQueue);
 		}
 
 		private void OnAssetBundleLoaded(Request aRequest)
@@ -366,6 +367,33 @@ namespace everlaster
 			}
 			catch (System.Exception e)
 			{ SuperController.LogError(e.ToString()); }
+		}
+
+		private void StopLoop()
+		{
+			if (myAudioSourceControl == null) return;
+			myAudioSourceControl.StopLoop();
+		}
+
+		private void Stop()
+		{
+			if (myAudioSourceControl == null) return;
+			// if (myAudioSource != null) myAudioSource.time = 0;
+			myAudioSourceControl.Stop();
+			prevClip = null; // prevent autoplay next
+		}
+
+		private void StopAndClearQueue()
+		{
+			if (myAudioSourceControl == null) return;
+			ClearQueue();
+			Stop();
+		}
+
+		private void ClearQueue()
+		{
+			if (myAudioSourceControl == null) return;
+			myAudioSourceControl.ClearQueue();
 		}
 
 		private AudioClip prevClip;
