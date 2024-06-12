@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
 using Request = MeshVR.AssetLoader.AssetBundleFromFileRequest;
 using MeshVR;
@@ -15,7 +14,7 @@ namespace everlaster
 		private JSONStorableUrl myAudioBundle;
 		private JSONStorableBool myAcceptTrigger;
 		private JSONStorableBool myAvoidRepetition;
-		private JSONStorableBool myAutoplayNext;
+		private JSONStorableStringChooser myAutoplayChooser;
 		private JSONStorableStringChooser myModeChooser;
 
 		private string myBundleURL = null;
@@ -23,8 +22,13 @@ namespace everlaster
 		private AudioSourceControl myAudioSourceControl;
 		private AudioSource myAudioSource;
 
+		private const string AUTOPLAY_OFF = "Off";
+		private const string AUTOPLAY_NEXT = "Next";
+		private const string AUTOPLAY_SHUFFLE = "Shuffle";
+		private static string AUTOPLAY_MODE = AUTOPLAY_OFF;
+
 		private int myModeIndex = DEFAULT_MODE;
-		private static readonly List<string> MODE_NAMES = new List<string>() { "PlayNext", "PlayNextClearQueue", "QueueClip", "PlayNow", "PlayIfClear", "PlayNowLoop", "PlayNowClearQueue" };
+		private static readonly List<string> MODE_NAMES = new List<string> { "PlayNext", "PlayNextClearQueue", "QueueClip", "PlayNow", "PlayIfClear", "PlayNowLoop", "PlayNowClearQueue" };
 		private const int DEFAULT_MODE = 6;
 
 		private Dictionary<string, Folder> myFolders = new Dictionary<string, Folder>();
@@ -33,8 +37,6 @@ namespace everlaster
 
 		private class Folder
 		{
-			private string name;
-
 			public Folder(string name)
 			{
 				this.name = name;
@@ -44,6 +46,12 @@ namespace everlaster
 			{
 				soundIndex.Clear();
 				sounds.Clear();
+			}
+
+			public void ClearShuffle()
+			{
+				shuffledIndices.Clear();
+				currentShuffleIndex = -1;
 			}
 
 			public void AddSound(string displayName, NamedAudioClip clip)
@@ -63,10 +71,10 @@ namespace everlaster
 
 				if (chooser == null)
 				{
-					string singleActionName = string.IsNullOrEmpty(folderName) ? "PlaySpecific" : "PlaySpecific [" + folderName + "]";
-					string randomActionName = string.IsNullOrEmpty(folderName) ? "PlayRandom" : "PlayRandom [" + folderName + "]";
-					string prevActionName = string.IsNullOrEmpty(folderName) ? "PlayPrevious" : "PlayPrevious [" + folderName + "]";
-					string nextActionName = string.IsNullOrEmpty(folderName) ? "PlayNext" : "PlayNext [" + folderName + "]";
+					string singleActionName = string.IsNullOrEmpty(folderName) ? "PlaySpecific" : $"PlaySpecific [{folderName}]";
+					string randomActionName = string.IsNullOrEmpty(folderName) ? "PlayRandom" : $"PlayRandom [{folderName}]";
+					string prevActionName = string.IsNullOrEmpty(folderName) ? "PlayPrevious" : $"PlayPrevious [{folderName}]";
+					string nextActionName = string.IsNullOrEmpty(folderName) ? "PlayNext" : $"PlayNext [{folderName}]";
 					chooser = new JSONStorableStringChooser(singleActionName, displays, "", "");
 					chooser.isStorable = chooser.isRestorable = false;
 					singleAction = new JSONStorableActionStringChooser(singleActionName, PlaySingleSound, chooser);
@@ -113,7 +121,7 @@ namespace everlaster
 
 				int idx;
 				soundIndex.TryGetValue(displayName, out idx);
-				PlayIndexClip(idx);
+				PlayIndexClip(idx, true);
 			}
 
 			private void PlayRandomSound()
@@ -150,7 +158,7 @@ namespace everlaster
 						++idx;
 				}
 
-				PlayIndexClip(idx);
+				PlayIndexClip(idx, true);
 			}
 
 			private void PlayPreviousSound()
@@ -158,7 +166,22 @@ namespace everlaster
 				if (self == null || !self.myAcceptTrigger.val)
 					return;
 
-				PlayIndexClip(currentIdx - 1);
+				if(AUTOPLAY_MODE == AUTOPLAY_SHUFFLE)
+				{
+					if(currentShuffleIndex > 0) currentShuffleIndex--;
+					if(currentShuffleIndex >= 0 && currentShuffleIndex < shuffledIndices.Count)
+					{
+						PlayIndexClip(shuffledIndices[currentShuffleIndex]);
+					}
+					else
+					{
+						PlayIndexClip(currentIdx);
+					}
+				}
+				else
+				{
+					PlayIndexClip(currentIdx == 0 ? currentIdx : currentIdx - 1);
+				}
 			}
 
 			private void PlayNextSound()
@@ -166,13 +189,41 @@ namespace everlaster
 				if (self == null || !self.myAcceptTrigger.val)
 					return;
 
-				PlayIndexClip(currentIdx + 1);
+				if(AUTOPLAY_MODE == AUTOPLAY_SHUFFLE)
+				{
+					if(currentShuffleIndex < shuffledIndices.Count - 1)
+					{
+						currentShuffleIndex++;
+						if(currentShuffleIndex >= 0 && currentShuffleIndex < shuffledIndices.Count)
+						{
+							PlayIndexClip(shuffledIndices[currentShuffleIndex]);
+						}
+						else
+						{
+							PlayRandomSound();
+						}
+					}
+					else
+					{
+						PlayRandomSound();
+					}
+				}
+				else
+				{
+					PlayIndexClip(currentIdx + 1);
+				}
 			}
 
-			private void PlayIndexClip(int idx)
+			private void PlayIndexClip(int idx, bool addToShuffleList = false)
 			{
 				if (idx < 0 || idx >= sounds.Count)
 					return;
+
+				if(addToShuffleList && AUTOPLAY_MODE == AUTOPLAY_SHUFFLE)
+				{
+					shuffledIndices.Add(idx);
+					currentShuffleIndex = shuffledIndices.Count - 1;
+				}
 
 				myPreviousIndex2 = myPreviousIndex1;
 				myPreviousIndex1 = idx;
@@ -201,6 +252,7 @@ namespace everlaster
 				SoundFromAssetBundle.skipLastClipCheckOnce = true;
 			}
 
+			private string name;
 			private JSONStorableStringChooser chooser;
 			private JSONStorableActionStringChooser singleAction;
 			private JSONStorableAction randomAction;
@@ -211,6 +263,8 @@ namespace everlaster
 			private int currentIdx = -1;
 			private int myPreviousIndex1 = int.MaxValue;
 			private int myPreviousIndex2 = int.MaxValue;
+			private readonly List<int> shuffledIndices = new List<int>();
+			int currentShuffleIndex = -1;
 			private SoundFromAssetBundle self;
 		}
 
@@ -243,16 +297,17 @@ namespace everlaster
 
 			Utils.SetupInfoTextNoScroll(this,
 				$"<color=#606060><size=40><b>{nameof(SoundFromAssetBundle)}</b></size>" +
-				"\n<i>Based on SoundFromAB by MacGruber</i>" +
-				"\n\nExposes audio files found in a <i>Unity AssetBundle</i> as <i>Triggers</i>. Each folder will have the following triggers actions:" +
+				"\n<size=24><i>Based on SoundFromAB by MacGruber</i></size>" +
+				"\n\nExposes audio files found in a <i>Unity AssetBundle</i> folders as <i>Triggers</i>:" +
 				"\n\n- <b><i>PlaySpecific</i></b> plays the selected clip" +
 				"\n- <b><i>PlayRandom</i></b> picks a random clip" +
 				"\n- <b><i>PlayPrevious</i></b> plays the previous clip" +
 				"\n- <b><i>PlayNext</i></b> plays the next clip" +
-				"\n\nIn addition, the <b>Autoplay Next</b> toggle will automatically trigger PlayNext when a clip ends, until all clips in the folder have been played." +
+				"\n\n<b>Autoplay</b> will automatically play the next clip or a random clip (shuffle) when a clip ends. If playing the next clip, autoplay will stop on the last clip in the folder, while autoplaying a random clip will play indefinitely." +
+				" Shuffle will also cause the PlayNext action to trigger PlayRandom instead, and the PlayPrevious action to play the previously shuffled clip." +
 				"\n\nIt's recommended to use file extension <i>*.assetbundle</i> for your <i>AssetBundle</i> files. While other extensions are supported, VaM will not auto-detect those as dependencies when creating a VAR." +
-				"\n\nUse <b>Avoid Repetition</b> to discard the last 1-2 choices (depending on the number of total available choices) when using PlayRandom." +
-				"\n\nUse <b>Mode</b> to control in which way the next audio should be played. These correspond to the modes offered by regular VaM audio, and can be set by trigger just before playing a file via one of the above trigger actions.</color>",
+				"\n\n<b>Avoid Repetition</b> discards the last 1-2 choices (depending on the number of total available choices) when using PlayRandom or Autoplay Shuffle." +
+				"\n\n<b>Mode</b> controls how audio should be played. These correspond to the modes in the AudioSource receiver, and can be set by trigger just before calling one of the above trigger actions.</color>",
 				1200.0f, true
 			);
 
@@ -280,10 +335,21 @@ namespace everlaster
 
 			myAcceptTrigger = Utils.SetupToggle(this, "AcceptTrigger", true, false);
 			myAvoidRepetition = Utils.SetupToggle(this, "Avoid Repetition", true, false);
-			myAutoplayNext = Utils.SetupToggle(this, "Autoplay Next", false, false);
+			myAutoplayChooser = Utils.SetupStringChooser(this, "Autoplay", new List<string> { AUTOPLAY_OFF, AUTOPLAY_NEXT, AUTOPLAY_SHUFFLE }, 0, false);
+			myAutoplayChooser.setCallbackFunction += (string v) =>
+			{
+				AUTOPLAY_MODE = v;
+				if(AUTOPLAY_MODE == AUTOPLAY_SHUFFLE)
+				{
+					foreach (var folder in myFolders)
+					{
+						folder.Value.ClearShuffle();
+					}
+				}
+			};
 			myModeChooser = Utils.SetupStringChooser(this, "Mode", MODE_NAMES, DEFAULT_MODE, false);
 			myModeChooser.setCallbackFunction += (string v) => {
-				myModeIndex = MODE_NAMES.FindIndex((string entry) => { return entry == v; });
+				myModeIndex = MODE_NAMES.FindIndex((string entry) => entry == v);
 				if (myModeIndex < 0)
 				{
 					myModeIndex = DEFAULT_MODE;
@@ -403,7 +469,7 @@ namespace everlaster
 			if (myBundleURL == null)
 				myAudioBundle.setCallbackFunction(myAudioBundle.val);
 
-			if (!myAutoplayNext.val || myAudioSource == null || lastPlayedFolderName == null)
+			if (myAutoplayChooser.val == AUTOPLAY_OFF || myAudioSource == null || lastPlayedFolderName == null)
 				return;
 
 			var clip = myAudioSource.clip;
@@ -411,11 +477,10 @@ namespace everlaster
 			{
 				skipLastClipCheckOnce = false;
 			}
-			else if (this.enabled && myAutoplayNext.val && prevClip != null && prevClip != clip)
+			else if (this.enabled && prevClip != null && prevClip != clip)
 			{
 				if (myFolders.ContainsKey(lastPlayedFolderName))
 				{
-					Debug.Log($"Calling PlayNext on {lastPlayedFolderName}");
 					this.CallAction($"PlayNext [{lastPlayedFolderName}]");
 					skipLastClipCheckOnce = true;
 				}
